@@ -1,0 +1,8 @@
+{
+  "name": "maps",
+  "description": "An implementation of Zoom in-out on a map",
+  "repository": "https://github.com/adeora7/maps",
+  "logo": "https://cdn.rawgit.com/heroku/node-js-getting-started/master/public/node.svg",
+  "keywords": ["node", "express", "heroku"],
+  "image": "heroku/nodejs"
+}

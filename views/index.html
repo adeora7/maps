@@ -1,9 +1,42 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title></title>
+	<title>Foogle Maps</title>
+	<link rel="stylesheet" type="text/css" href="/css/main.css">
 </head>
 <body>
-<%=data%>
+
+	<% for( var i =0; i< data.length; i++) { %>
+		<img src="/mapData/<%=data[i]%>" class="<%=i%>">
+	<% } %>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  var socket = io();
+  var images = document.getElementsByTagName('img');
+  for(let j =1; j<=images.length; j++){
+  	  images[j-1].addEventListener('wheel', function(event){
+	  	if(event.deltaY>0)
+	  	{
+	  		socket.emit('zoomOut', 'Zoom out');
+	  	}
+	  	else
+	  	{
+	  		socket.emit('zoomIn', j);
+	  	}
+	  });
+  }
+  socket.on('updatedView', function(message){
+  	console.log(message);
+  	message = JSON.parse(message);
+  	var newImageSources = message["urls"];
+  	var imagePath = message["path"];
+  	imagePath = imagePath.split('/').splice(7).join("/");
+  	for(let k =0; k< images.length; k++)
+  	{
+  		images[k].src = imagePath + "/" + newImageSources[k];
+  	}
+  });
+</script>
 </body>
 </html>

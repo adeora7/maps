@@ -1,42 +1,83 @@
+//configuration variables start
+var levels = 7;
+//configuration variables end
+
 var express = require('express');
 var assert = require('assert');
 var bodyParser = require('body-parser');
-var session = require('express-session');
 var moment = require('moment');
-var MySQLStore = require('express-mysql-session')(session);
-var sessionStore = new MySQLStore(options);
-var mysql = require('mysql');
 var path = require('path');
 var serveIndex = require('serve-index');
+var fs = require('fs');
+var app = express();
+var server = app.listen(9612, function() {
+  console.log('Node app is running on port', app.get('port'));
+});
+var io = require('socket.io')(server);
+var sockets = {};
+//socket io functions start
 
-var options = {
-    host: 'localhost',
-    port: 3306,
-    user: 'topcoder',
-    password: 'password',
-    database: 'topcoder'
-};
-var connection = mysql.createConnection(options); // or mysql.createPool(options); 
-var sessionStore = new MySQLStore({}/* session store options */, connection);
+io.on('connection', function(socket){
+  sockets[socket.id]= app.get('views') + "static/mapData";
+  console.log("one user connected");
+  socket.on('zoomOut', function(message){
+    console.log(message);
+    if(sockets[socket.id] == app.get('views') + "static/mapData"){
+      console.log("can't Zoom out anymore");
+    }
+    else{
+      var currPath = sockets[socket.id].split("/");
+      currPath = currPath.slice(0, -1);
+      sockets[socket.id] = currPath.join('/');
+      readDir( sockets[socket.id], socket, "world", function(request, response, dirResponse){
+        var uv = { "urls" : dirResponse, "path": sockets[socket.id]} ;
+        socket.emit('updatedView', JSON.stringify(uv));
+      });
+    }
+  });
+  socket.on('zoomIn', function(message){
+    console.log("Zoom in to grid " + message);
+    if(sockets[socket.id].split('/').length < 6 + levels ){
+      sockets[socket.id] = sockets[socket.id] + "/" + message;
+    }
 
-connection.connect(function(err){
-	if(!err)
-		console.log("Database connected\n");
-	else
-	{
-		console.log("Error whilte connecting to database\n");
-		console.log(err);
-	}
+    readDir( sockets[socket.id], socket, "world", function(request, response, dirResponse){
+      var uv = { "urls" : dirResponse, "path": sockets[socket.id]} ;
+      socket.emit('updatedView', JSON.stringify(uv));
+    });
+  
+  });
+  socket.on('updateView', function(message){
+    console.log(message);
+    if(message == "Zoom out")
+    {
+      if(sockets[socket.id] == app.get('views') + "static/mapData"){
+        console.log("can't Zoom out anymore");
+      }
+      else{
+        var currPath = sockets[socket.id].split("/");
+        currPath = currPath.slice(0, -1);
+        sockets[socket.id] = currPath.join('/');
+        readDir( sockets[socket.id], socket, "world", function(request, response, dirResponse){
+          socket.emit('updatedView', JSON.stringify(dirResponse));
+        });
+
+      }
+    }
+    else
+    {
+      console.log("abhi Zoom in ka baad mei  sochenge");
+    }
+  });
+
+  socket.on('disconnect', function(){
+    console.log(socket.id + " disconnected");
+    delete sockets[socket.id];
+  });
 });
 
-var app = express();
-app.use(session({
-    key: 'session_cookie_name',
-    secret: 'session_cookie_secret',
-    store: sessionStore,
-    resave: false,
-    saveUninitialized: false
-}));
+//socket io functions end
+
 
 app.set('port', (process.env.PORT || 9611));
 
@@ -45,6 +86,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // views is directory for all template files
 app.set('views', __dirname + '/views/');
+app.set('mapData', __dirname + '/mapData/');
 app.use(express.static(__dirname + '/views/static'));
 app.engine('html', require('ejs').renderFile);
 app.set('view engine', 'ejs');
@@ -84,13 +126,43 @@ function makeEntry(info, callback) {
 }
 
 app.get('/', function(request, response) {
-	response.render(app.get('views')+'index.html', {data: "Welcome to worst maps ever"});
+  readDir(app.get('views') + 'static/mapData', request, response, function(request, response, dirResponse){
+    response.render(app.get('views')+'index.html', {data: dirResponse});
+  });
 });
 
 app.get('/error', function(request, response){
 	response.send("Some error occured. Let me work on it in peace.");
 });
 
-app.listen(9612, function() {
-	console.log('Node app is running on port', app.get('port'));
-});
+function readDir(dirname, request, response, callback){
+  fs.readdir(dirname, function(err, filenames){
+    if(err){
+      console.log(err);
+      if(callback){
+        callback(request, response, "some error occured");
+        return;
+      }
+      else{
+        return "some error occured";
+      }
+    }
+    else
+    {
+      console.log(filenames.length);
+      var images = [];
+      filenames.forEach(function(file){
+        if(path.extname(file) == ".jpg"){
+          images.push(file);
+        }
+      });
+      if(callback){
+        callback(request, response, images);
+        return;
+      }
+      else{
+        return images;
+      }
+    }
+  });
+}

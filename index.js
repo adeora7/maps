@@ -1,5 +1,5 @@
 //configuration variables start
-var levels = 7;
+var levels = 5;
 //configuration variables end
 
 var express = require('express');
